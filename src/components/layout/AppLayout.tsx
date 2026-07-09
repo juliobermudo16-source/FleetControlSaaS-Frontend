@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Car, LogOut, Truck, Users as UsersIcon } from 'lucide-react'
+import { LayoutDashboard, Car, LogOut, Truck, User, Users as UsersIcon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
   { to: '/vehicles', label: 'Vehiculos', icon: Car, adminOnly: false },
   { to: '/users', label: 'Usuarios', icon: UsersIcon, adminOnly: true },
+  { to: '/profile', label: 'Mi perfil', icon: User, adminOnly: false },
 ]
 
 export function AppLayout() {

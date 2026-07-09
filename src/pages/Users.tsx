@@ -6,16 +6,39 @@ import { useUsers } from '@/hooks/useUsers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { UserRole } from '@/types'
-import { Plus, UserPlus } from 'lucide-react'
+import type { AppUser, UserRole } from '@/types'
+import { Plus, RotateCcw, UserPlus, UserX } from 'lucide-react'
+
+function apiErrorMessage(err: unknown, fallback: string) {
+  return (isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined) ?? fallback
+}
 
 export function Users() {
-  const { role } = useAuth()
-  const { users, loading, error, inviteUser } = useUsers()
+  const { role, session } = useAuth()
+  const { users, loading, error, inviteUser, deactivateUser, reactivateUser } = useUsers()
   const [showForm, setShowForm] = useState(false)
 
   if (role !== 'admin') {
     return <p className="text-text-muted">Solo un administrador puede ver esta seccion.</p>
+  }
+
+  const handleDeactivate = async (u: AppUser) => {
+    if (!window.confirm(`¿Eliminar a ${u.fullName}? Perdera acceso al sistema y se desasignara de sus vehiculos.`)) return
+    try {
+      await deactivateUser(u.id)
+      toast.success(`${u.fullName} fue eliminado`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo eliminar al usuario.'))
+    }
+  }
+
+  const handleReactivate = async (u: AppUser) => {
+    try {
+      await reactivateUser(u.id)
+      toast.success(`${u.fullName} fue reactivado`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo reactivar al usuario.'))
+    }
   }
 
   return (
@@ -42,24 +65,41 @@ export function Users() {
                   <th className="p-3 font-medium">Correo</th>
                   <th className="p-3 font-medium">Rol</th>
                   <th className="p-3 font-medium">Estado</th>
+                  <th className="p-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-border last:border-0">
-                    <td className="p-3 font-medium">{u.fullName}</td>
-                    <td className="p-3 text-text-muted">{u.email}</td>
-                    <td className="p-3 capitalize">{u.role === 'admin' ? 'Administrador' : 'Conductor'}</td>
-                    <td className="p-3">
-                      <Badge className={u.isActive ? 'bg-green/15 text-green border-green/30' : 'bg-surface-hover text-text-muted border-border'}>
-                        {u.isActive ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const isSelf = u.id === session?.user.id
+                  return (
+                    <tr key={u.id} className="border-b border-border last:border-0">
+                      <td className="p-3 font-medium">{u.fullName}</td>
+                      <td className="p-3 text-text-muted">{u.email}</td>
+                      <td className="p-3 capitalize">{u.role === 'admin' ? 'Administrador' : 'Conductor'}</td>
+                      <td className="p-3">
+                        <Badge className={u.isActive ? 'bg-green/15 text-green border-green/30' : 'bg-surface-hover text-text-muted border-border'}>
+                          {u.isActive ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        {isSelf ? (
+                          <span className="text-xs text-text-muted">Tu cuenta</span>
+                        ) : u.isActive ? (
+                          <button onClick={() => handleDeactivate(u)} className="text-red hover:opacity-80 inline-flex items-center gap-1 text-xs">
+                            <UserX size={13} /> Eliminar
+                          </button>
+                        ) : (
+                          <button onClick={() => handleReactivate(u)} className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
+                            <RotateCcw size={13} /> Reactivar
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-text-muted">
+                    <td colSpan={5} className="p-6 text-center text-text-muted">
                       Aun no hay usuarios invitados.
                     </td>
                   </tr>

@@ -29,5 +29,21 @@ export function useUsers() {
     [fetchUsers]
   )
 
-  return { users, loading, error, refetch: fetchUsers, inviteUser }
+  const deactivateUser = useCallback(
+    async (id: string) => {
+      await apiClient.delete(`/api/users/${id}`)
+      fetchUsers()
+    },
+    [fetchUsers]
+  )
+
+  const reactivateUser = useCallback(
+    async (id: string) => {
+      await apiClient.post(`/api/users/${id}/reactivate`)
+      fetchUsers()
+    },
+    [fetchUsers]
+  )
+
+  return { users, loading, error, refetch: fetchUsers, inviteUser, deactivateUser, reactivateUser }
 }

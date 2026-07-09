@@ -11,6 +11,7 @@ import { Dashboard } from '@/pages/Dashboard'
 import { Vehicles } from '@/pages/Vehicles'
 import { VehicleDetail } from '@/pages/VehicleDetail'
 import { Users } from '@/pages/Users'
+import { Profile } from '@/pages/Profile'
 import { AlertTriangle } from 'lucide-react'
 
 function ConfigMissingScreen() {
@@ -65,6 +66,7 @@ function App() {
             <Route path="/vehicles" element={<Vehicles />} />
             <Route path="/vehicles/:id" element={<VehicleDetail />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
         </Routes>
       </BrowserRouter>
