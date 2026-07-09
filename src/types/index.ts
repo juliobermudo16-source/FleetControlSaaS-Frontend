@@ -61,6 +61,16 @@ export interface CreateMaintenanceLogRequest {
   notes?: string | null
 }
 
+export interface MaintenanceLog {
+  id: string
+  vehicleId: string
+  maintenanceTypeName: string
+  mileageAtService: number
+  serviceDate: string
+  cost: number
+  notes: string | null
+}
+
 export interface DocumentStatus {
   vehicleId: string
   documentId: string
@@ -81,6 +91,7 @@ export interface VehicleDocument {
   fileHashSha256: string
   status: AlertStatus
   daysUntilExpiration: number
+  isCurrent: boolean
 }
 
 export interface VehiclePhoto {
@@ -96,6 +107,7 @@ export interface VehicleAlertSummary {
   overallStatus: AlertStatus
   maintenanceItems: MaintenanceStatus[]
   documentItems: DocumentStatus[]
+  photoUrl: string | null
 }
 
 export interface AppUser {

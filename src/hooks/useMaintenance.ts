@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiClient } from '@/lib/apiClient'
-import type { CreateMaintenanceLogRequest, MaintenanceStatus } from '@/types'
+import type { CreateMaintenanceLogRequest, MaintenanceLog, MaintenanceStatus } from '@/types'
 
 export function useMaintenance(vehicleId: string) {
   const [statuses, setStatuses] = useState<MaintenanceStatus[]>([])
@@ -28,5 +28,10 @@ export function useMaintenance(vehicleId: string) {
     [fetchStatuses]
   )
 
-  return { statuses, loading, error, registerMaintenance }
+  const getHistory = useCallback(async () => {
+    const res = await apiClient.get<MaintenanceLog[]>(`/api/maintenance/vehicle/${vehicleId}/history`)
+    return res.data
+  }, [vehicleId])
+
+  return { statuses, loading, error, registerMaintenance, getHistory }
 }

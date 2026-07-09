@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
-import { AlertTriangle, DollarSign, ShieldCheck, Truck } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, Car, DollarSign, ShieldCheck, Truck } from 'lucide-react'
 import { useDashboard } from '@/hooks/useDashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -126,16 +127,30 @@ export function Dashboard() {
               const urgentMaintenance = v.maintenanceItems.filter((m) => m.status !== 'Green')
               const urgentDocuments = v.documentItems.filter((d) => d.status !== 'Green')
               return (
-                <div
+                <Link
                   key={v.vehicleId}
+                  to={`/vehicles/${v.vehicleId}`}
                   className={cn(
-                    'rounded-lg border-l-4 border border-border p-3 space-y-2.5 transition-shadow hover:shadow-sm',
+                    'block rounded-lg border-l-4 border border-border p-3 space-y-2.5 transition-shadow hover:shadow-md hover:bg-surface-hover',
                     v.overallStatus === 'Red' ? 'border-l-red' : 'border-l-yellow'
                   )}
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{v.licensePlate}</p>
-                    <Badge status={v.overallStatus}>{v.overallStatus}</Badge>
+                  <div className="flex items-center gap-3">
+                    {v.photoUrl ? (
+                      <img
+                        src={v.photoUrl}
+                        alt={`Foto de ${v.licensePlate}`}
+                        className="h-12 w-16 shrink-0 rounded-md object-cover border border-border"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-md bg-surface-hover text-text-muted">
+                        <Car size={20} />
+                      </div>
+                    )}
+                    <div className="flex flex-1 items-center justify-between">
+                      <p className="font-medium">{v.licensePlate}</p>
+                      <Badge status={v.overallStatus}>{v.overallStatus}</Badge>
+                    </div>
                   </div>
 
                   {urgentMaintenance.map((m) => (
@@ -159,7 +174,7 @@ export function Dashboard() {
                       ))}
                     </div>
                   )}
-                </div>
+                </Link>
               )
             })}
           </CardContent>

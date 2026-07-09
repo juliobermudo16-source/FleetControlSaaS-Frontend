@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import toast from 'react-hot-toast'
-import { AlertTriangle, ArrowLeft, Camera, FileDown, FileText, Pencil, Plus, Star, Trash2, Wrench, Download, X, Check } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Camera, FileDown, FileText, History, Pencil, Plus, Star, Trash2, Wrench, Download, X, Check } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useVehicle } from '@/hooks/useVehicle'
 import { usePhotos } from '@/hooks/usePhotos'
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { cn } from '@/lib/utils'
-import type { DocumentType, MaintenanceStatus, Vehicle, VehicleDocument } from '@/types'
+import type { DocumentType, MaintenanceLog, MaintenanceStatus, Vehicle, VehicleDocument } from '@/types'
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined) ?? fallback
@@ -263,12 +263,15 @@ function PhotosSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boo
 // ─── Documentos ─────────────────────────────────────────────────────────
 
 function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boolean }) {
-  const { documents, loading, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument } = useDocuments(vehicleId)
+  const { documents, loading, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument, getHistoryByType } = useDocuments(vehicleId)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editIssueDate, setEditIssueDate] = useState('')
   const [editExpirationDate, setEditExpirationDate] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [historyOpenFor, setHistoryOpenFor] = useState<DocumentType | null>(null)
+  const [historyCache, setHistoryCache] = useState<Partial<Record<DocumentType, VehicleDocument[]>>>({})
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   const handleDownload = async (documentId: string) => {
     try {
@@ -276,6 +279,25 @@ function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: 
       window.open(url, '_blank')
     } catch (err) {
       toast.error(apiErrorMessage(err, 'No se pudo generar el enlace de descarga.'))
+    }
+  }
+
+  const toggleHistory = async (documentType: DocumentType) => {
+    if (historyOpenFor === documentType) {
+      setHistoryOpenFor(null)
+      return
+    }
+    setHistoryOpenFor(documentType)
+    if (!historyCache[documentType]) {
+      setHistoryLoading(true)
+      try {
+        const history = await getHistoryByType(documentType)
+        setHistoryCache((prev) => ({ ...prev, [documentType]: history }))
+      } catch (err) {
+        toast.error(apiErrorMessage(err, 'No se pudo cargar el historial.'))
+      } finally {
+        setHistoryLoading(false)
+      }
     }
   }
 
@@ -403,6 +425,13 @@ function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: 
                             <button onClick={() => handleDownload(d.id)} className="text-primary hover:underline inline-flex items-center gap-1">
                               <Download size={13} /> Descargar
                             </button>
+                            <button
+                              onClick={() => toggleHistory(d.documentType)}
+                              className={cn('inline-flex items-center gap-1 hover:text-text', historyOpenFor === d.documentType ? 'text-primary' : 'text-text-muted')}
+                              aria-label="Ver historial"
+                            >
+                              <History size={13} /> Historial
+                            </button>
                             {isAdmin && (
                               <>
                                 <button onClick={() => startEdit(d)} className="text-text-muted hover:text-text" aria-label="Editar fechas">
@@ -422,6 +451,48 @@ function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: 
               })}
             </tbody>
           </table>
+        )}
+
+        {historyOpenFor && (
+          <div className="rounded-lg border border-border bg-surface-hover/50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
+              Historial de {DOCUMENT_TYPE_LABELS[historyOpenFor]}
+            </p>
+            {historyLoading && <p className="text-sm text-text-muted">Cargando historial...</p>}
+            {!historyLoading && (historyCache[historyOpenFor]?.length ?? 0) === 0 && (
+              <p className="text-sm text-text-muted">No hay documentos anteriores de este tipo.</p>
+            )}
+            {!historyLoading && (historyCache[historyOpenFor]?.length ?? 0) > 0 && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-text-muted text-xs uppercase">
+                    <th className="p-2 font-medium">Emision</th>
+                    <th className="p-2 font-medium">Vencimiento</th>
+                    <th className="p-2 font-medium">Estado</th>
+                    <th className="p-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyCache[historyOpenFor]!.map((d) => (
+                    <tr key={d.id} className="border-b border-border last:border-0">
+                      <td className="p-2 text-text-muted">
+                        {formatDate(d.issueDate)} {d.isCurrent && <Badge className="ml-1 text-[10px]">Vigente</Badge>}
+                      </td>
+                      <td className="p-2 text-text-muted">{formatDate(d.expirationDate)}</td>
+                      <td className="p-2">
+                        <Badge status={d.status}>{d.daysUntilExpiration <= 0 ? 'Vencido' : `${d.daysUntilExpiration} dias`}</Badge>
+                      </td>
+                      <td className="p-2 text-right">
+                        <button onClick={() => handleDownload(d.id)} className="text-primary hover:underline inline-flex items-center gap-1">
+                          <Download size={13} /> Descargar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -524,8 +595,29 @@ function DocumentUploadForm({ onUpload, onDone }: DocumentUploadFormProps) {
 // ─── Mantenimiento ──────────────────────────────────────────────────────
 
 function MaintenanceSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boolean }) {
-  const { statuses, loading, registerMaintenance } = useMaintenance(vehicleId)
+  const { statuses, loading, registerMaintenance, getHistory } = useMaintenance(vehicleId)
   const [showForm, setShowForm] = useState(false)
+  const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
+  const [history, setHistory] = useState<MaintenanceLog[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  const toggleHistory = async (maintenanceTypeName: string) => {
+    if (historyOpenFor === maintenanceTypeName) {
+      setHistoryOpenFor(null)
+      return
+    }
+    setHistoryOpenFor(maintenanceTypeName)
+    if (!history) {
+      setHistoryLoading(true)
+      try {
+        setHistory(await getHistory())
+      } catch (err) {
+        toast.error(apiErrorMessage(err, 'No se pudo cargar el historial.'))
+      } finally {
+        setHistoryLoading(false)
+      }
+    }
+  }
 
   return (
     <Card>
@@ -553,19 +645,48 @@ function MaintenanceSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin
         {!loading && statuses.length === 0 && <p className="text-sm text-text-muted">No hay tipos de mantenimiento configurados.</p>}
         {!loading && statuses.length > 0 && (
           <div className="space-y-3">
-            {statuses.map((m) => (
-              <div key={m.maintenanceTypeId} className="rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-sm">{m.maintenanceTypeName}</span>
-                  <Badge status={m.status}>{m.wearPercentage.toFixed(0)}%</Badge>
+            {statuses.map((m) => {
+              const isOpen = historyOpenFor === m.maintenanceTypeName
+              const entriesForType = history?.filter((h) => h.maintenanceTypeName === m.maintenanceTypeName) ?? []
+              return (
+                <div key={m.maintenanceTypeId} className="rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-sm">{m.maintenanceTypeName}</span>
+                    <Badge status={m.status}>{m.wearPercentage.toFixed(0)}%</Badge>
+                  </div>
+                  <ProgressBar percentage={m.wearPercentage} status={m.status} />
+                  <div className="flex items-center justify-between text-xs text-text-muted mt-1.5">
+                    <span>Ultimo servicio: {formatDate(m.lastServiceDate)} ({m.lastServiceMileage.toLocaleString()} km)</span>
+                    <span>Cada {m.intervalKm.toLocaleString()} km</span>
+                  </div>
+                  <button
+                    onClick={() => toggleHistory(m.maintenanceTypeName)}
+                    className={cn('mt-2 inline-flex items-center gap-1 text-xs hover:text-text', isOpen ? 'text-primary' : 'text-text-muted')}
+                  >
+                    <History size={12} /> {isOpen ? 'Ocultar historial' : 'Ver historial'}
+                  </button>
+
+                  {isOpen && (
+                    <div className="mt-2 rounded-lg bg-surface-hover/50 p-2">
+                      {historyLoading && <p className="text-xs text-text-muted">Cargando historial...</p>}
+                      {!historyLoading && entriesForType.length === 0 && (
+                        <p className="text-xs text-text-muted">Aun no hay mantenimientos registrados de este tipo.</p>
+                      )}
+                      {!historyLoading && entriesForType.length > 0 && (
+                        <ul className="space-y-1.5">
+                          {entriesForType.map((h) => (
+                            <li key={h.id} className="flex items-center justify-between text-xs text-text-muted border-b border-border last:border-0 pb-1.5 last:pb-0">
+                              <span>{formatDate(h.serviceDate)} · {h.mileageAtService.toLocaleString()} km</span>
+                              <span>S/ {h.cost.toFixed(2)}{h.notes ? ` · ${h.notes}` : ''}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <ProgressBar percentage={m.wearPercentage} status={m.status} />
-                <div className="flex items-center justify-between text-xs text-text-muted mt-1.5">
-                  <span>Ultimo servicio: {formatDate(m.lastServiceDate)} ({m.lastServiceMileage.toLocaleString()} km)</span>
-                  <span>Cada {m.intervalKm.toLocaleString()} km</span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>

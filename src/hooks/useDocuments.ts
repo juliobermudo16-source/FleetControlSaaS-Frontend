@@ -55,5 +55,13 @@ export function useDocuments(vehicleId: string) {
     [fetchDocuments]
   )
 
-  return { documents, loading, error, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument }
+  const getHistoryByType = useCallback(
+    async (documentType: DocumentType) => {
+      const res = await apiClient.get<VehicleDocument[]>(`/api/documents/vehicle/${vehicleId}/type/${documentType}/history`)
+      return res.data
+    },
+    [vehicleId]
+  )
+
+  return { documents, loading, error, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument, getHistoryByType }
 }
