@@ -33,13 +33,16 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 
 export function VehicleDetail() {
   const { id } = useParams<{ id: string }>()
-  const { role } = useAuth()
+  const { role, session } = useAuth()
   const isAdmin = role === 'admin'
   const { vehicle, loading, error } = useVehicle(id!)
 
   if (loading) return <p className="text-text-muted">Cargando vehiculo...</p>
   if (error) return <p className="text-red">{error}</p>
   if (!vehicle) return null
+
+  const isAssignedDriver = vehicle.assignedDriverId === session?.user.id
+  const canRegisterMaintenance = isAdmin || isAssignedDriver
 
   return (
     <div className="space-y-6">
@@ -63,7 +66,7 @@ export function VehicleDetail() {
 
       <PhotosSection vehicleId={vehicle.id} isAdmin={isAdmin} />
       <DocumentsSection vehicleId={vehicle.id} isAdmin={isAdmin} />
-      <MaintenanceSection vehicleId={vehicle.id} isAdmin={isAdmin} />
+      <MaintenanceSection vehicleId={vehicle.id} canRegister={canRegisterMaintenance} />
     </div>
   )
 }
@@ -594,7 +597,7 @@ function DocumentUploadForm({ onUpload, onDone }: DocumentUploadFormProps) {
 
 // ─── Mantenimiento ──────────────────────────────────────────────────────
 
-function MaintenanceSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boolean }) {
+function MaintenanceSection({ vehicleId, canRegister }: { vehicleId: string; canRegister: boolean }) {
   const { statuses, loading, registerMaintenance, getHistory } = useMaintenance(vehicleId)
   const [showForm, setShowForm] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
@@ -625,7 +628,7 @@ function MaintenanceSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin
         <CardTitle className="flex items-center gap-2">
           <Wrench size={16} /> Mantenimiento
         </CardTitle>
-        {isAdmin && (
+        {canRegister && (
           <Button variant="outline" className="gap-1.5" onClick={() => setShowForm((v) => !v)}>
             <Plus size={14} /> Registrar mantenimiento
           </Button>
