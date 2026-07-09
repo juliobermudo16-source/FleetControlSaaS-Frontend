@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabaseClient'
+import { apiClient } from '@/lib/apiClient'
 import type { UserRole } from '@/types'
 
 interface AuthContextValue {
@@ -18,21 +19,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let mounted = true
+
+    // El rol real (admin/driver) vive en public.users, no en el JWT de
+    // Supabase, asi que se resuelve pidiendoselo al backend (que ya sabe
+    // leer el TenantId/Role via el middleware JWT).
+    const loadRole = async (hasSession: boolean) => {
+      if (!hasSession) {
+        if (mounted) setRole(null)
+        return
+      }
+      try {
+        const { data } = await apiClient.get<{ role: UserRole }>('/api/users/me')
+        if (mounted) setRole(data.role)
+      } catch {
+        if (mounted) setRole(null)
+      }
+    }
+
+    supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
-      // El rol real (admin/driver) se resuelve en el backend via el
-      // middleware JWT; aqui se puede leer de user_metadata si se sincroniza
-      // al crear el usuario, o pedirse a un endpoint /api/users/me.
-      setRole((data.session?.user.user_metadata?.role as UserRole) ?? null)
-      setLoading(false)
+      await loadRole(!!data.session)
+      if (mounted) setLoading(false)
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession)
-      setRole((newSession?.user.user_metadata?.role as UserRole) ?? null)
+      void loadRole(!!newSession)
     })
 
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      mounted = false
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   const signOut = async () => {

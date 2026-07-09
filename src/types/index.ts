@@ -47,6 +47,22 @@ export interface VehicleAlertSummary {
   documentItems: DocumentStatus[]
 }
 
+export interface AppUser {
+  id: string
+  fullName: string
+  email: string
+  role: UserRole
+  isActive: boolean
+  phone: string | null
+}
+
+export interface InviteUserRequest {
+  fullName: string
+  email: string
+  role: UserRole
+  phone?: string | null
+}
+
 export interface DashboardSummary {
   totalVehicles: number
   greenCount: number
