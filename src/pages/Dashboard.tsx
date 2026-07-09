@@ -1,5 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
-import { AlertTriangle, DollarSign, Truck } from 'lucide-react'
+import { AlertTriangle, DollarSign, ShieldCheck, Truck } from 'lucide-react'
 import { useDashboard } from '@/hooks/useDashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,41 +21,62 @@ export function Dashboard() {
     { name: 'Rojo', value: data.redCount },
   ].filter((d) => d.value > 0)
 
+  const healthPercentage = data.totalVehicles > 0 ? Math.round((data.greenCount / data.totalVehicles) * 100) : 0
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Dashboard ejecutivo</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Dashboard ejecutivo</h1>
+        <p className="text-sm text-text-muted">Vista general de la salud de tu flota</p>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Total de vehiculos</CardTitle>
-            <Truck size={18} className="text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-primary">{data.totalVehicles}</p>
+        <Card className="overflow-hidden border-t-4 border-t-primary transition-shadow hover:shadow-md">
+          <CardContent className="flex items-center gap-4 pt-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Truck size={22} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Total de vehiculos</p>
+              <p className="text-3xl font-bold text-primary">{data.totalVehicles}</p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Costo estimado proximo</CardTitle>
-            <DollarSign size={18} className="text-yellow" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-yellow">S/ {data.estimatedUpcomingCost.toFixed(2)}</p>
+        <Card className="overflow-hidden border-t-4 border-t-yellow transition-shadow hover:shadow-md">
+          <CardContent className="flex items-center gap-4 pt-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-yellow/10">
+              <DollarSign size={22} className="text-yellow" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Costo estimado proximo</p>
+              <p className="text-3xl font-bold text-yellow">S/ {data.estimatedUpcomingCost.toFixed(2)}</p>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Mantenimientos urgentes</CardTitle>
-            <AlertTriangle size={18} className={data.urgentVehicles.length > 0 ? 'text-red' : 'text-green'} />
-          </CardHeader>
-          <CardContent>
-            <p className={cn('text-3xl font-bold', data.urgentVehicles.length > 0 ? 'text-red' : 'text-green')}>
-              {data.urgentVehicles.length}
-            </p>
+        <Card
+          className={cn(
+            'overflow-hidden border-t-4 transition-shadow hover:shadow-md',
+            data.urgentVehicles.length > 0 ? 'border-t-red' : 'border-t-green'
+          )}
+        >
+          <CardContent className="flex items-center gap-4 pt-5">
+            <div
+              className={cn(
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-full',
+                data.urgentVehicles.length > 0 ? 'bg-red/10' : 'bg-green/10'
+              )}
+            >
+              <AlertTriangle size={22} className={data.urgentVehicles.length > 0 ? 'text-red' : 'text-green'} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Mantenimientos urgentes</p>
+              <p className={cn('text-3xl font-bold', data.urgentVehicles.length > 0 ? 'text-red' : 'text-green')}>
+                {data.urgentVehicles.length}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -66,7 +87,7 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle>Estado de la flota</CardTitle>
           </CardHeader>
-          <CardContent className="h-64">
+          <CardContent className="relative h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
@@ -78,6 +99,14 @@ export function Dashboard() {
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
+            {data.totalVehicles > 0 && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-8">
+                <span className={cn('text-2xl font-bold', healthPercentage === 100 ? 'text-green' : 'text-text')}>
+                  {healthPercentage}%
+                </span>
+                <span className="text-[10px] uppercase tracking-wide text-text-muted">Saludable</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -88,13 +117,22 @@ export function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             {data.urgentVehicles.length === 0 && (
-              <p className="text-sm text-text-muted">No hay vehiculos en estado critico. Toda la flota esta al dia.</p>
+              <div className="flex items-center gap-3 rounded-lg bg-green/10 p-4 text-sm text-green">
+                <ShieldCheck size={20} />
+                No hay vehiculos en estado critico. Toda la flota esta al dia.
+              </div>
             )}
             {data.urgentVehicles.map((v) => {
               const urgentMaintenance = v.maintenanceItems.filter((m) => m.status !== 'Green')
               const urgentDocuments = v.documentItems.filter((d) => d.status !== 'Green')
               return (
-                <div key={v.vehicleId} className="rounded-lg border border-border p-3 space-y-2.5">
+                <div
+                  key={v.vehicleId}
+                  className={cn(
+                    'rounded-lg border-l-4 border border-border p-3 space-y-2.5 transition-shadow hover:shadow-sm',
+                    v.overallStatus === 'Red' ? 'border-l-red' : 'border-l-yellow'
+                  )}
+                >
                   <div className="flex items-center justify-between">
                     <p className="font-medium">{v.licensePlate}</p>
                     <Badge status={v.overallStatus}>{v.overallStatus}</Badge>
