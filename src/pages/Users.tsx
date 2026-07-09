@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { isAxiosError } from 'axios'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/context/AuthContext'
@@ -13,31 +13,56 @@ function apiErrorMessage(err: unknown, fallback: string) {
   return (isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined) ?? fallback
 }
 
+function formatCountdown(pendingDeletionAt: string) {
+  const remainingMs = new Date(pendingDeletionAt).getTime() - Date.now()
+  const totalSeconds = Math.max(0, Math.round(remainingMs / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
 export function Users() {
   const { role, session } = useAuth()
-  const { users, loading, error, inviteUser, deactivateUser, reactivateUser } = useUsers()
+  const { users, loading, error, inviteUser, deactivateUser, reactivateUser, refetch } = useUsers()
   const [showForm, setShowForm] = useState(false)
+  const [, setTick] = useState(0)
+
+  const hasPendingDeletions = users.some((u) => u.pendingDeletionAt)
+
+  // Refresca cada segundo la cuenta regresiva de los usuarios pendientes de borrado.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Mientras haya usuarios pendientes de borrado, se vuelve a pedir la lista
+  // cada 15s para que la fila desaparezca sola cuando el backend los elimine.
+  useEffect(() => {
+    if (!hasPendingDeletions) return
+    const id = setInterval(() => refetch(), 15000)
+    return () => clearInterval(id)
+  }, [hasPendingDeletions, refetch])
 
   if (role !== 'admin') {
     return <p className="text-text-muted">Solo un administrador puede ver esta seccion.</p>
   }
 
   const handleDeactivate = async (u: AppUser) => {
-    if (!window.confirm(`¿Eliminar a ${u.fullName}? Perdera acceso al sistema y se desasignara de sus vehiculos.`)) return
+    if (!window.confirm(`¿Eliminar a ${u.fullName}? Perdera acceso de inmediato y el borrado sera PERMANENTE en 10 minutos. Puedes deshacerlo antes de que se cumpla el plazo.`)) return
     try {
       await deactivateUser(u.id)
-      toast.success(`${u.fullName} fue eliminado`)
+      toast.success(`${u.fullName} sera eliminado en 10 minutos`)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'No se pudo eliminar al usuario.'))
     }
   }
 
-  const handleReactivate = async (u: AppUser) => {
+  const handleUndo = async (u: AppUser) => {
     try {
       await reactivateUser(u.id)
-      toast.success(`${u.fullName} fue reactivado`)
+      toast.success(`Se deshizo la eliminacion de ${u.fullName}`)
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'No se pudo reactivar al usuario.'))
+      toast.error(apiErrorMessage(err, 'No se pudo deshacer la eliminacion.'))
     }
   }
 
@@ -77,20 +102,26 @@ export function Users() {
                       <td className="p-3 text-text-muted">{u.email}</td>
                       <td className="p-3 capitalize">{u.role === 'admin' ? 'Administrador' : 'Conductor'}</td>
                       <td className="p-3">
-                        <Badge className={u.isActive ? 'bg-green/15 text-green border-green/30' : 'bg-surface-hover text-text-muted border-border'}>
-                          {u.isActive ? 'Activo' : 'Inactivo'}
-                        </Badge>
+                        {u.pendingDeletionAt ? (
+                          <Badge className="bg-red/15 text-red border-red/30">
+                            Se elimina en {formatCountdown(u.pendingDeletionAt)}
+                          </Badge>
+                        ) : (
+                          <Badge className={u.isActive ? 'bg-green/15 text-green border-green/30' : 'bg-surface-hover text-text-muted border-border'}>
+                            {u.isActive ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        )}
                       </td>
                       <td className="p-3 text-right">
                         {isSelf ? (
                           <span className="text-xs text-text-muted">Tu cuenta</span>
-                        ) : u.isActive ? (
-                          <button onClick={() => handleDeactivate(u)} className="text-red hover:opacity-80 inline-flex items-center gap-1 text-xs">
-                            <UserX size={13} /> Eliminar
+                        ) : u.pendingDeletionAt ? (
+                          <button onClick={() => handleUndo(u)} className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
+                            <RotateCcw size={13} /> Deshacer eliminacion
                           </button>
                         ) : (
-                          <button onClick={() => handleReactivate(u)} className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                            <RotateCcw size={13} /> Reactivar
+                          <button onClick={() => handleDeactivate(u)} className="text-red hover:opacity-80 inline-flex items-center gap-1 text-xs">
+                            <UserX size={13} /> Eliminar
                           </button>
                         )}
                       </td>

@@ -117,12 +117,19 @@ export interface AppUser {
   role: UserRole
   isActive: boolean
   phone: string | null
+  avatarUrl: string | null
+  pendingDeletionAt: string | null
 }
 
 export interface InviteUserRequest {
   fullName: string
   email: string
   role: UserRole
+  phone?: string | null
+}
+
+export interface UpdateProfileRequest {
+  fullName: string
   phone?: string | null
 }
 
