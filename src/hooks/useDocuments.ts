@@ -39,5 +39,21 @@ export function useDocuments(vehicleId: string) {
     return res.data.url
   }, [])
 
-  return { documents, loading, error, uploadDocument, getDownloadUrl }
+  const updateDocumentDates = useCallback(
+    async (documentId: string, issueDate: string, expirationDate: string) => {
+      await apiClient.put(`/api/documents/${documentId}`, { issueDate, expirationDate })
+      fetchDocuments()
+    },
+    [fetchDocuments]
+  )
+
+  const deleteDocument = useCallback(
+    async (documentId: string) => {
+      await apiClient.delete(`/api/documents/${documentId}`)
+      fetchDocuments()
+    },
+    [fetchDocuments]
+  )
+
+  return { documents, loading, error, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument }
 }

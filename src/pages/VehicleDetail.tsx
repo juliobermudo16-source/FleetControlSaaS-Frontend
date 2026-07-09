@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Camera, FileText, Plus, Star, Trash2, Wrench, Download } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Camera, FileDown, FileText, Pencil, Plus, Star, Trash2, Wrench, Download, X, Check } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useVehicle } from '@/hooks/useVehicle'
 import { usePhotos } from '@/hooks/usePhotos'
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { cn } from '@/lib/utils'
-import type { DocumentType } from '@/types'
+import type { DocumentType, MaintenanceStatus, Vehicle, VehicleDocument } from '@/types'
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined) ?? fallback
@@ -55,7 +55,10 @@ export function VehicleDetail() {
             {vehicle.currentMileage.toLocaleString()} km
           </p>
         </div>
-        <Badge status={vehicle.overallAlertStatus}>{vehicle.overallAlertStatus}</Badge>
+        <div className="flex items-center gap-3">
+          <Badge status={vehicle.overallAlertStatus}>{vehicle.overallAlertStatus}</Badge>
+          <ReportButton vehicle={vehicle} />
+        </div>
       </div>
 
       <PhotosSection vehicleId={vehicle.id} isAdmin={isAdmin} />
@@ -63,6 +66,111 @@ export function VehicleDetail() {
       <MaintenanceSection vehicleId={vehicle.id} isAdmin={isAdmin} />
     </div>
   )
+}
+
+// ─── Reporte ────────────────────────────────────────────────────────────
+
+function ReportButton({ vehicle }: { vehicle: Vehicle }) {
+  const { statuses } = useMaintenance(vehicle.id)
+  const { documents } = useDocuments(vehicle.id)
+
+  const handleDownload = () => {
+    const html = buildReportHtml(vehicle, statuses, documents)
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `reporte-${vehicle.licensePlate}.html`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Button variant="outline" className="gap-1.5" onClick={handleDownload}>
+      <FileDown size={14} /> Descargar reporte
+    </Button>
+  )
+}
+
+function buildReportHtml(vehicle: Vehicle, statuses: MaintenanceStatus[], documents: VehicleDocument[]) {
+  const generatedAt = new Date().toLocaleString('es-PE')
+
+  const maintenanceRows = statuses
+    .map(
+      (m) => `
+        <tr>
+          <td>${m.maintenanceTypeName}</td>
+          <td>${formatDate(m.lastServiceDate)}</td>
+          <td>${m.lastServiceMileage.toLocaleString('es-PE')} km</td>
+          <td>${m.intervalKm.toLocaleString('es-PE')} km</td>
+          <td>${m.wearPercentage.toFixed(0)}%</td>
+          <td>${m.status}</td>
+        </tr>`
+    )
+    .join('')
+
+  const documentRows = documents
+    .map(
+      (d) => `
+        <tr>
+          <td>${DOCUMENT_TYPE_LABELS[d.documentType]}</td>
+          <td>${formatDate(d.issueDate)}</td>
+          <td>${formatDate(d.expirationDate)}</td>
+          <td>${d.daysUntilExpiration <= 0 ? 'Vencido' : `${d.daysUntilExpiration} dias`}</td>
+          <td>${d.status}</td>
+        </tr>`
+    )
+    .join('')
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Reporte ${vehicle.licensePlate}</title>
+<style>
+  body { font-family: system-ui, sans-serif; color: #0f172a; padding: 32px; max-width: 800px; margin: 0 auto; }
+  h1 { margin-bottom: 4px; }
+  .subtitle { color: #64748b; margin-top: 0; }
+  h2 { margin-top: 32px; border-bottom: 2px solid #f97316; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+  th { color: #64748b; text-transform: uppercase; font-size: 11px; }
+  .empty { color: #64748b; font-size: 14px; margin-top: 12px; }
+  .meta { color: #94a3b8; font-size: 12px; margin-top: 40px; }
+  .print-btn { margin-top: 24px; padding: 10px 20px; background: #f97316; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head>
+<body>
+  <h1>Reporte de vehiculo — ${vehicle.licensePlate}</h1>
+  <p class="subtitle">${vehicle.brand} ${vehicle.model} · ${vehicle.manufactureYear} · ${vehicle.color ?? 'Sin color'} · ${vehicle.currentMileage.toLocaleString('es-PE')} km</p>
+
+  <h2>Mantenimiento</h2>
+  ${
+    statuses.length === 0
+      ? '<p class="empty">No hay tipos de mantenimiento configurados.</p>'
+      : `<table>
+    <thead><tr><th>Tipo</th><th>Ultimo servicio</th><th>Km del servicio</th><th>Intervalo</th><th>Desgaste</th><th>Estado</th></tr></thead>
+    <tbody>${maintenanceRows}</tbody>
+  </table>`
+  }
+
+  <h2>Documentos</h2>
+  ${
+    documents.length === 0
+      ? '<p class="empty">No hay documentos cargados.</p>'
+      : `<table>
+    <thead><tr><th>Tipo</th><th>Emision</th><th>Vencimiento</th><th>Dias restantes</th><th>Estado</th></tr></thead>
+    <tbody>${documentRows}</tbody>
+  </table>`
+  }
+
+  <button class="print-btn" onclick="window.print()">Imprimir / Guardar como PDF</button>
+  <p class="meta">Generado el ${generatedAt}</p>
+</body>
+</html>`
 }
 
 // ─── Fotos ──────────────────────────────────────────────────────────────
@@ -155,8 +263,12 @@ function PhotosSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boo
 // ─── Documentos ─────────────────────────────────────────────────────────
 
 function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: boolean }) {
-  const { documents, loading, uploadDocument, getDownloadUrl } = useDocuments(vehicleId)
+  const { documents, loading, uploadDocument, getDownloadUrl, updateDocumentDates, deleteDocument } = useDocuments(vehicleId)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editIssueDate, setEditIssueDate] = useState('')
+  const [editExpirationDate, setEditExpirationDate] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const handleDownload = async (documentId: string) => {
     try {
@@ -164,6 +276,37 @@ function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: 
       window.open(url, '_blank')
     } catch (err) {
       toast.error(apiErrorMessage(err, 'No se pudo generar el enlace de descarga.'))
+    }
+  }
+
+  const startEdit = (d: { id: string; issueDate: string; expirationDate: string }) => {
+    setEditingId(d.id)
+    setEditIssueDate(d.issueDate)
+    setEditExpirationDate(d.expirationDate)
+  }
+
+  const cancelEdit = () => setEditingId(null)
+
+  const saveEdit = async (documentId: string) => {
+    setSavingEdit(true)
+    try {
+      await updateDocumentDates(documentId, editIssueDate, editExpirationDate)
+      toast.success('Documento actualizado')
+      setEditingId(null)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo actualizar el documento.'))
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDelete = async (documentId: string) => {
+    if (!window.confirm('¿Eliminar este documento? Esta accion no se puede deshacer.')) return
+    try {
+      await deleteDocument(documentId)
+      toast.success('Documento eliminado')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo eliminar el documento.'))
     }
   }
 
@@ -201,23 +344,82 @@ function DocumentsSection({ vehicleId, isAdmin }: { vehicleId: string; isAdmin: 
               </tr>
             </thead>
             <tbody>
-              {documents.map((d) => (
-                <tr key={d.id} className="border-b border-border last:border-0">
-                  <td className="p-2 font-medium">{DOCUMENT_TYPE_LABELS[d.documentType]}</td>
-                  <td className="p-2 text-text-muted">{formatDate(d.issueDate)}</td>
-                  <td className="p-2 text-text-muted">{formatDate(d.expirationDate)}</td>
-                  <td className="p-2">
-                    <Badge status={d.status}>
-                      {d.daysUntilExpiration <= 0 ? 'Vencido' : `${d.daysUntilExpiration} dias`}
-                    </Badge>
-                  </td>
-                  <td className="p-2 text-right">
-                    <button onClick={() => handleDownload(d.id)} className="text-primary hover:underline inline-flex items-center gap-1">
-                      <Download size={13} /> Descargar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {documents.map((d) => {
+                const isEditing = editingId === d.id
+                return (
+                  <tr key={d.id} className="border-b border-border last:border-0">
+                    <td className="p-2 font-medium">{DOCUMENT_TYPE_LABELS[d.documentType]}</td>
+                    {isEditing ? (
+                      <>
+                        <td className="p-2">
+                          <input
+                            type="date"
+                            value={editIssueDate}
+                            onChange={(e) => setEditIssueDate(e.target.value)}
+                            className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="date"
+                            value={editExpirationDate}
+                            onChange={(e) => setEditExpirationDate(e.target.value)}
+                            className="w-full rounded-lg border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                          />
+                        </td>
+                        <td className="p-2 text-text-muted">—</td>
+                        <td className="p-2 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => saveEdit(d.id)}
+                              disabled={savingEdit}
+                              className="text-green hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+                              aria-label="Guardar cambios"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              disabled={savingEdit}
+                              className="text-text-muted hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+                              aria-label="Cancelar edicion"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="p-2 text-text-muted">{formatDate(d.issueDate)}</td>
+                        <td className="p-2 text-text-muted">{formatDate(d.expirationDate)}</td>
+                        <td className="p-2">
+                          <Badge status={d.status}>
+                            {d.daysUntilExpiration <= 0 ? 'Vencido' : `${d.daysUntilExpiration} dias`}
+                          </Badge>
+                        </td>
+                        <td className="p-2 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => handleDownload(d.id)} className="text-primary hover:underline inline-flex items-center gap-1">
+                              <Download size={13} /> Descargar
+                            </button>
+                            {isAdmin && (
+                              <>
+                                <button onClick={() => startEdit(d)} className="text-text-muted hover:text-text" aria-label="Editar fechas">
+                                  <Pencil size={13} />
+                                </button>
+                                <button onClick={() => handleDelete(d.id)} className="text-red hover:opacity-80" aria-label="Eliminar documento">
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
@@ -304,8 +506,15 @@ function DocumentUploadForm({ onUpload, onDone }: DocumentUploadFormProps) {
           className="mt-1 w-full text-sm"
         />
       </div>
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? 'Subiendo...' : 'Guardar'}
+      <div className="md:col-span-5 flex items-start gap-2 rounded-lg bg-yellow/10 border border-yellow/30 p-3 text-sm text-text">
+        <AlertTriangle size={16} className="text-yellow mt-0.5 shrink-0" />
+        <span>
+          Esta accion es irreversible: una vez registrado, solo un administrador podra editar las fechas o eliminarlo.
+          Si ya existe un documento de este tipo para el vehiculo, sera reemplazado.
+        </span>
+      </div>
+      <Button type="submit" disabled={loading} className="md:col-span-5 text-base py-3">
+        {loading ? 'Guardando...' : 'Guardar documento'}
       </Button>
       {error && <p className="md:col-span-5 text-sm text-red">{error}</p>}
     </form>
