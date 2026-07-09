@@ -9,6 +9,7 @@ import { ForgotPassword } from '@/pages/ForgotPassword'
 import { ResetPassword } from '@/pages/ResetPassword'
 import { Dashboard } from '@/pages/Dashboard'
 import { Vehicles } from '@/pages/Vehicles'
+import { VehicleDetail } from '@/pages/VehicleDetail'
 import { Users } from '@/pages/Users'
 import { AlertTriangle } from 'lucide-react'
 
@@ -62,6 +63,7 @@ function App() {
           >
             <Route path="/" element={<Dashboard />} />
             <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/vehicles/:id" element={<VehicleDetail />} />
             <Route path="/users" element={<Users />} />
           </Route>
         </Routes>
