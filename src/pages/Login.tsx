@@ -33,7 +33,7 @@ export function Login() {
       <Card className="w-full max-w-sm">
         <CardHeader className="flex flex-col items-center gap-2 text-center">
           <Truck className="text-primary" size={32} />
-          <CardTitle className="text-lg text-text normal-case">FleetControl SaaS</CardTitle>
+          <CardTitle className="text-lg text-text normal-case">Sistemas Forever</CardTitle>
           <p className="text-xs text-text-muted">Control de flota de vehiculos</p>
         </CardHeader>
         <CardContent>
